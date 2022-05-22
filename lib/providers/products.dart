@@ -80,6 +80,9 @@ class Products with ChangeNotifier {
       final response = await http.get(url);
       final List<Product> dataList = [];
       final data = json.decode(response.body) as Map<String, dynamic>;
+      if(data == null){
+        return;
+      }
       data.forEach((prodId, value) {
         dataList.add(Product(
           id: prodId,
@@ -159,5 +162,29 @@ class Products with ChangeNotifier {
         notifyListeners();
       }
     });
+  }
+
+
+  Future<void> toggleFavorite(String id) async {
+    final url = Uri.https(firebaseDomain, '/products/$id.json');
+    final currentIndex = _items.indexWhere((prod) => prod.id == id);
+    var currentProd = _items[currentIndex];
+    currentProd.toggleFavoriteStatus();
+    try {
+      await http.patch(url,
+          body: json.encode({
+            'isFavorite': currentProd.isFavorite,
+          })).then((response) {
+        if (response.statusCode >= 400) {
+          currentProd.toggleFavoriteStatus();
+          throw HttpException('Could not update the database');
+        } else {
+          notifyListeners();
+        }
+      });
+
+    } catch (e) {
+      print(e);
+    }
   }
 }

@@ -20,21 +20,26 @@ class ProductsOverviewScreen extends StatefulWidget {
 
 class _ProductsOverviewScreenState extends State<ProductsOverviewScreen> {
   var _showOnlyFavorites = false;
-  var _isLoading = false;
+  Future _productsFuture;
+
+  Future _getProductsFuture() {
+    return Provider.of<Products>(context, listen: false).getAllProducts();
+  }
 
   @override
   void initState() {
-    setState(() {
-      _isLoading = true;
-    });
-    Future.delayed(Duration.zero)
-        .then((value) =>
-            Provider.of<Products>(context, listen: false).getAllProducts())
-        .then((value) {
-      setState(() {
-        _isLoading = false;
-      });
-    });
+    _productsFuture = _getProductsFuture();
+    // setState(() {
+    //   _isLoading = true;
+    // });
+    // Future.delayed(Duration.zero)
+    //     .then((value) =>
+    //         Provider.of<Products>(context, listen: false).getAllProducts())
+    //     .then((value) {
+    //   setState(() {
+    //     _isLoading = false;
+    //   });
+    // });
     super.initState();
   }
 
@@ -79,9 +84,30 @@ class _ProductsOverviewScreenState extends State<ProductsOverviewScreen> {
         ],
       ),
       drawer: AppDrawer(),
-      body: _isLoading ? Center(
-        child: CircularProgressIndicator(),
-      ): ProductsGrid(_showOnlyFavorites),
+      body: FutureBuilder(
+          future:
+              Provider.of<Products>(context, listen: false).getAllProducts(),
+          builder: (context, dataSnapshot) {
+            if (dataSnapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            } else {
+              if (dataSnapshot.error != null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('An error has occurred at our end!'),
+                      Text('Please try again later.'),
+                    ],
+                  ),
+                );
+              } else {
+                return Consumer<Products>(
+                    builder: (context, orderData, child) =>
+                        ProductsGrid(_showOnlyFavorites));
+              }
+            }
+          }),
     );
   }
 }
