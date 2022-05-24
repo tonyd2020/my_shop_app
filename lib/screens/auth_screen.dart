@@ -1,6 +1,10 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth.dart';
+import '../models/http_exception.dart';
+
 
 enum AuthMode { Signup, Login }
 
@@ -100,7 +104,19 @@ class _AuthCardState extends State<AuthCard> {
   var _isLoading = false;
   final _passwordController = TextEditingController();
 
-  void _submit() {
+  void _showErrorDialog(String message) {
+    showDialog(context: context, builder: (context) => AlertDialog(
+      title: Text('An error has occurred'),
+      content: Text(message),
+      actions: [
+        TextButton(onPressed: () {
+          Navigator.of(context).pop();
+        }, child: Text('Ok')),
+      ],
+    ));
+  }
+
+  Future<void> _submit() async {
     if (!_formKey.currentState.validate()) {
       // Invalid!
       return;
@@ -109,11 +125,32 @@ class _AuthCardState extends State<AuthCard> {
     setState(() {
       _isLoading = true;
     });
-    if (_authMode == AuthMode.Login) {
-      // Log user in
-    } else {
-      // Sign user up
-    }
+    try {
+      if (_authMode == AuthMode.Login) {
+            // Log user in
+            await Provider.of<Auth>(context, listen: false).logIn(_authData['email'], _authData['password']);
+          } else {
+            // Sign up user
+            await Provider.of<Auth>(context, listen: false).signUp(_authData['email'], _authData['password']);
+          }
+    } on HttpException catch (e) {
+      print(e.message);
+      var errorMessage = 'Something\'s wrong';
+      if (e.message.contains('EMAIL_EXISTS')){
+        errorMessage = 'Email address already in use';
+      } else if (e.message.contains('INVALID_EMAIL')){
+        errorMessage = 'Please use a valid Email address';
+      } else if (e.message.contains('WEAK_PASSWORD')) {
+        errorMessage = 'Password used is too weak';
+      } else if (e.message.contains('EMAIL_NOT_FOUND')) {
+        errorMessage = 'Could not find a user with that email';
+      } else if (e.message.contains('INVALID_PASSWORD')) {
+        errorMessage = 'Invalid Password';
+      }
+      _showErrorDialog(errorMessage);
+    } catch (e) {
+  print(e);
+  }
     setState(() {
       _isLoading = false;
     });

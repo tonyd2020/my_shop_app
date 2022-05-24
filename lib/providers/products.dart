@@ -44,8 +44,16 @@ class Products with ChangeNotifier {
   //         'https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Cast-Iron-Pan.jpg/1024px-Cast-Iron-Pan.jpg',
   //   ),
   // ];
+  //
+  // var _showFavoritesOnly = false;
+  String authToken;
+  String userId;
 
-  var _showFavoritesOnly = false;
+  Products(this.authToken, this.userId, this._items);
+
+  void update(String token) {
+    authToken = token;
+  }
 
   List<Product> get items {
     // if (_showFavoritesOnly) {
@@ -74,35 +82,41 @@ class Products with ChangeNotifier {
   //   notifyListeners();
   // }
 
-  Future<void> getAllProducts() async {
-    final url = Uri.https(firebaseDomain, '/products.json');
+  Future<void> getAllProducts([bool filterByUser=false]) async {
+    final filterString = filterByUser ? {'orderBy': '"creatorId"', 'equalTo': '"$userId"', 'auth': authToken} : {'auth': authToken};
+    final List<Product> dataList = [];
+    final url = Uri.https(firebaseDomain, '/products.json', filterString);
+    // print(url);
     try {
       final response = await http.get(url);
-      final List<Product> dataList = [];
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      if(data == null){
+      print('${response.statusCode} : ${response.reasonPhrase}');
+      final extractedData = json.decode(response.body) as Map<String, dynamic>;
+      if (extractedData == null) {
         return;
       }
-      data.forEach((prodId, value) {
-        dataList.add(Product(
+      final favUrl = Uri.https(firebaseDomain, '/userFavorites/$userId.json', {'auth': authToken});
+      final favResponse = await http.get(favUrl);
+      final favData = json.decode(favResponse.body);
+      final List<Product> loadedProducts = [];
+      extractedData.forEach((prodId, prodData) {
+        loadedProducts.add(Product(
           id: prodId,
-          price: value['price'],
-          title: value['title'],
-          description: value['description'],
-          imageUrl: value['imageUrl'],
-          isFavorite: value['isFavorite'],
+          title: prodData['title'],
+          description: prodData['description'],
+          price: prodData['price'],
+          isFavorite: favData == null ? false : favData[prodId] ?? false,
+          imageUrl: prodData['imageUrl'],
         ));
       });
-      _items = dataList;
+      _items = loadedProducts;
       notifyListeners();
-    } catch (e) {
-      print(e);
-      throw (e);
+    } catch (error) {
+      throw (error);
     }
   }
 
   Future<void> addProduct(Product product) {
-    final url = Uri.https(firebaseDomain, '/products.json');
+    final url = Uri.https(firebaseDomain, '/products.json', {'auth': authToken});
     return http
         .post(url,
             body: json.encode({
@@ -110,9 +124,10 @@ class Products with ChangeNotifier {
               'description': product.description,
               'imageUrl': product.imageUrl,
               'price': product.price,
-              'isFavorite': product.isFavorite,
+              'creatorId': userId,
             }))
         .then((response) {
+      print('${response.statusCode} : ${response.reasonPhrase}');
       final newProduct = Product(
         title: product.title,
         description: product.description,
@@ -131,25 +146,28 @@ class Products with ChangeNotifier {
   Future<void> updateProduct(String id, Product product) async {
     final index = _items.indexWhere((item) => item.id == id);
     if (index >= 0) {
-      final url = Uri.https(firebaseDomain, '/products/$id.json');
+      final url =
+          Uri.https(firebaseDomain, '/products/$id.json', {'auth': authToken});
       try {
-        await http.patch(url,
+         final response = await http.patch(url,
             body: json.encode({
               'title': product.title,
               'description': product.description,
               'price': product.price,
               'imageUrl': product.imageUrl,
             }));
+         print('${response.statusCode} : ${response.reasonPhrase}');
       } catch (e) {
         print(e);
       }
+
       _items[index] = product;
       notifyListeners();
     }
   }
 
   Future<void> deleteProduct(String id) async {
-    final url = Uri.https(firebaseDomain, '/products/$id.json');
+    final url = Uri.https(firebaseDomain, '/products/$id.json', {'auth': authToken});
     final currentIndex = _items.indexWhere((prod) => prod.id == id);
     var currentProd = _items[currentIndex];
     _items.removeAt(currentIndex);
@@ -164,17 +182,16 @@ class Products with ChangeNotifier {
     });
   }
 
-
-  Future<void> toggleFavorite(String id) async {
-    final url = Uri.https(firebaseDomain, '/products/$id.json');
+  Future<void> toggleFavorite(String id, String userId) async {
+    final url = Uri.https(firebaseDomain, '/userFavorites/$userId/$id.json', {'auth': authToken});
     final currentIndex = _items.indexWhere((prod) => prod.id == id);
     var currentProd = _items[currentIndex];
     currentProd.toggleFavoriteStatus();
     try {
-      await http.patch(url,
-          body: json.encode({
-            'isFavorite': currentProd.isFavorite,
-          })).then((response) {
+      await http
+          .put(url,
+              body: json.encode(currentProd.isFavorite))
+          .then((response) {
         if (response.statusCode >= 400) {
           currentProd.toggleFavoriteStatus();
           throw HttpException('Could not update the database');
@@ -182,7 +199,6 @@ class Products with ChangeNotifier {
           notifyListeners();
         }
       });
-
     } catch (e) {
       print(e);
     }

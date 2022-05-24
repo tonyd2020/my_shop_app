@@ -15,9 +15,11 @@ class OrderItem {
 class Orders with ChangeNotifier {
   static const firebaseDomain =
       'flutter-my-shop-app-d0449-default-rtdb.asia-southeast1.firebasedatabase.app';
-  final url = Uri.https(firebaseDomain, '/orders.json');
+  final String authToken;
 
   List<OrderItem> _orders = [];
+
+  Orders(this.authToken, this._orders);
 
   List<OrderItem> get orders {
     return [..._orders];
@@ -25,6 +27,7 @@ class Orders with ChangeNotifier {
 
   //TO DO: Complete the Firebase functionality for orders
   Future<void> addOrders(List<CartItem> cart, double total) async {
+    final url = Uri.https(firebaseDomain, '/orders.json', {'auth': authToken});
     final timestamp = DateTime.now();
     return http
         .post(url,
@@ -57,6 +60,7 @@ class Orders with ChangeNotifier {
   }
 
   Future<void> getAllOrders() async {
+    final url = Uri.https(firebaseDomain, '/orders.json', {'auth': authToken});
     final response = await http.get(url);
     final List<OrderItem> ordersList = [];
     final responseData = json.decode(response.body) as Map<String, dynamic>;

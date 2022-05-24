@@ -98,6 +98,7 @@ class _ProductsOverviewScreenState extends State<ProductsOverviewScreen> {
                     children: [
                       Text('An error has occurred at our end!'),
                       Text('Please try again later.'),
+                      Text(dataSnapshot.error.toString())
                     ],
                   ),
                 );
